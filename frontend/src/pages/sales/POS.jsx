@@ -3,7 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { searchProducts } from '../../api/products'
 import { createSale } from '../../api/sales'
 import toast from 'react-hot-toast'
-import { Search, Plus, Minus, Trash2, ShoppingCart, Printer, X } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, Phone } from 'lucide-react'
+import ReceiptModal from '../../components/ReceiptModal'
 
 const PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_MONEY', 'INSURANCE', 'CREDIT']
 
@@ -14,7 +15,8 @@ export default function POS() {
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [amountPaid, setAmountPaid] = useState('')
   const [discount, setDiscount] = useState(0)
-  const [lastSale, setLastSale] = useState(null)
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [receipt, setReceipt] = useState(null) // { sale, items }
   const [searching, setSearching] = useState(false)
   const searchTimeout = useRef(null)
   const qc = useQueryClient()
@@ -64,10 +66,11 @@ export default function POS() {
   const saleMut = useMutation({
     mutationFn: createSale,
     onSuccess: (res) => {
-      setLastSale(res.data.data)
-      setCart([]); setAmountPaid(''); setDiscount(0)
+      const sale = res.data.data
+      setReceipt({ sale, items: cart })
+      setCart([]); setAmountPaid(''); setDiscount(0); setCustomerPhone('')
       qc.invalidateQueries(['sales', 'dashboard'])
-      toast.success(`Sale #${res.data.data.invoiceNumber} completed!`)
+      toast.success(`Sale #${sale.invoiceNumber} completed!`)
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Sale failed')
   })
@@ -171,6 +174,16 @@ export default function POS() {
           <div className="card space-y-4">
             <h2 className="font-semibold text-gray-900">Payment</h2>
 
+            {/* Customer Phone */}
+            <div>
+              <label className="label">Customer Phone (for WhatsApp receipt)</label>
+              <div className="relative">
+                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input className="input pl-8" placeholder="+254 7XX XXX XXX"
+                  value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
+              </div>
+            </div>
+
             {/* Totals */}
             <div className="space-y-2 text-sm">
               <div className="flex justify-between text-gray-600">
@@ -244,26 +257,20 @@ export default function POS() {
 
             <button onClick={completeSale} disabled={saleMut.isPending || !cart.length}
               className="btn-primary w-full py-3.5 text-base font-bold">
-              {saleMut.isPending ? 'Processing...' : `Complete Sale — KES ${total.toLocaleString('en', {minimumFractionDigits:2})}`}
+              {saleMut.isPending ? 'Processing...' : `Complete Sale — KES ${total.toLocaleString('en', { minimumFractionDigits: 2 })}`}
             </button>
           </div>
-
-          {/* Receipt Preview */}
-          {lastSale && (
-            <div className="card bg-green-50 border-green-200 space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold text-green-800">✅ Sale Complete</p>
-                <button onClick={() => setLastSale(null)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
-              </div>
-              <p className="text-gray-600">Invoice: <span className="font-mono font-bold">{lastSale.invoiceNumber}</span></p>
-              <p className="text-gray-600">Total: <span className="font-bold">KES {Number(lastSale.totalAmount).toLocaleString()}</span></p>
-              <button className="btn-secondary w-full flex items-center justify-center gap-2 text-xs py-2">
-                <Printer size={14} /> Print Receipt
-              </button>
-            </div>
-          )}
         </div>
       </div>
+
+      {receipt && (
+        <ReceiptModal
+          sale={receipt.sale}
+          items={receipt.items}
+          customerPhone={customerPhone}
+          onClose={() => setReceipt(null)}
+        />
+      )}
     </div>
   )
 }

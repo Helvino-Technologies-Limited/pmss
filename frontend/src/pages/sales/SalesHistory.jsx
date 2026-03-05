@@ -1,21 +1,24 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getSales } from '../../api/sales'
 import { format } from 'date-fns'
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, Receipt } from 'lucide-react'
+import ReceiptModal from '../../components/ReceiptModal'
 
 const paymentBadge = (m) => {
-  const map = { CASH:'badge-green', CARD:'badge-blue', MOBILE_MONEY:'badge-blue', CREDIT:'badge-red', INSURANCE:'badge-yellow' }
-  return <span className={map[m] || 'badge-gray'}>{m?.replace('_',' ')}</span>
+  const map = { CASH: 'badge-green', CARD: 'badge-blue', MOBILE_MONEY: 'badge-blue', CREDIT: 'badge-red', INSURANCE: 'badge-yellow' }
+  return <span className={map[m] || 'badge-gray'}>{m?.replace('_', ' ')}</span>
 }
 
 const statusBadge = (s) => {
-  const map = { PAID:'badge-green', PARTIAL:'badge-yellow', CREDIT:'badge-red', REFUNDED:'badge-gray' }
+  const map = { PAID: 'badge-green', PARTIAL: 'badge-yellow', CREDIT: 'badge-red', REFUNDED: 'badge-gray' }
   return <span className={map[s] || 'badge-gray'}>{s}</span>
 }
 
 export default function SalesHistory() {
   const { data, isLoading } = useQuery({ queryKey: ['sales'], queryFn: getSales })
   const sales = data?.data?.data || []
+  const [receipt, setReceipt] = useState(null)
 
   const total = sales.filter(s => !s.isVoid).reduce((sum, s) => sum + Number(s.totalAmount), 0)
 
@@ -62,7 +65,16 @@ export default function SalesHistory() {
                     </td>
                     <td className="px-4 py-3">{paymentBadge(s.paymentMethod)}</td>
                     <td className="px-4 py-3">{s.isVoid ? <span className="badge-gray">VOID</span> : statusBadge(s.paymentStatus)}</td>
-                    <td className="px-4 py-3" />
+                    <td className="px-4 py-3">
+                      {!s.isVoid && (
+                        <button
+                          onClick={() => setReceipt(s)}
+                          className="flex items-center gap-1 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          <Receipt size={12} /> Receipt
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -70,6 +82,14 @@ export default function SalesHistory() {
           </div>
         )}
       </div>
+
+      {receipt && (
+        <ReceiptModal
+          sale={receipt}
+          items={[]}
+          onClose={() => setReceipt(null)}
+        />
+      )}
     </div>
   )
 }
