@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Truck,
   FileText, DollarSign, BarChart2, UserCog, LogOut,
-  Pill, ClipboardList, Building2, Menu, X, Bell
+  Pill, ClipboardList, Building2, Menu, X, Bell, ChevronRight
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -34,94 +34,149 @@ export default function DashboardLayout({ isAdmin }) {
 
   const handleLogout = () => { logout(); navigate('/login') }
 
+  const initials = user?.fullName
+    ? user.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : '?'
+
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-[#F0F2F5] overflow-hidden">
+
+      {/* Overlay */}
+      {sidebarOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/40 z-40 backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col transition-transform duration-300`}>
+      <aside className={`
+        fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-gray-200
+        flex flex-col sidebar-transition
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0
+      `}>
         {/* Logo */}
-        <div className="p-5 border-b border-slate-700">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-primary-500 rounded-lg flex items-center justify-center">
-              <Pill size={20} />
+            <div className="w-10 h-10 bg-primary-500 rounded-xl flex items-center justify-center shadow-sm">
+              <Pill size={20} className="text-white" />
             </div>
             <div>
-              <p className="font-bold text-sm leading-tight">PMSS</p>
-              <p className="text-xs text-slate-400 truncate max-w-[130px]">{user?.pharmacyName}</p>
+              <p className="font-bold text-gray-900 text-sm leading-tight">PMSS</p>
+              <p className="text-xs text-gray-500 truncate max-w-[140px]">{user?.pharmacyName || 'Helvino Admin'}</p>
             </div>
           </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Trial Banner */}
         {isTrial && (
-          <div className="mx-3 mt-3 bg-yellow-500/20 border border-yellow-500/40 rounded-lg p-2.5 text-xs text-yellow-300">
-            ⏳ Trial: {user?.trialDaysLeft} day(s) left
+          <div className="mx-4 mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-xs font-semibold text-amber-700">Trial Period</p>
+            <p className="text-xs text-amber-600 mt-0.5">{user?.trialDaysLeft} day(s) remaining</p>
           </div>
         )}
 
         {/* Nav */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto mt-2">
+        <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-0.5">
           {nav.map(({ to, icon: Icon, label, end }) => (
             <NavLink
               key={to} to={to} end={end}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                  isActive ? 'bg-primary-600 text-white' : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group ${
+                  isActive
+                    ? 'bg-primary-50 text-primary-600'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                 }`
               }
             >
-              <Icon size={18} />
-              {label}
+              {({ isActive }) => (
+                <>
+                  <span className={`flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
+                    isActive ? 'bg-primary-100' : 'group-hover:bg-gray-200'
+                  }`}>
+                    <Icon size={17} />
+                  </span>
+                  <span className="flex-1">{label}</span>
+                  {isActive && <ChevronRight size={14} className="text-primary-400" />}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
 
-        {/* User / Logout */}
-        <div className="p-3 border-t border-slate-700">
-          <div className="flex items-center gap-3 px-3 py-2 mb-1">
-            <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-xs font-bold">
-              {user?.fullName?.charAt(0)}
+        {/* User Profile */}
+        <div className="p-3 border-t border-gray-100">
+          <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 transition-colors mb-1">
+            <div className="w-9 h-9 bg-primary-500 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+              {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium truncate">{user?.fullName}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.role}</p>
+              <p className="text-sm font-semibold text-gray-900 truncate">{user?.fullName}</p>
+              <p className="text-xs text-gray-400 truncate capitalize">{user?.role?.replace('_', ' ').toLowerCase()}</p>
             </div>
           </div>
-          <button onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-red-900/50 hover:text-red-300 transition-colors">
-            <LogOut size={18} /> Logout
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-gray-500 hover:bg-red-50 hover:text-red-600 transition-all duration-150"
+          >
+            <span className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-100">
+              <LogOut size={17} />
+            </span>
+            Sign Out
           </button>
         </div>
       </aside>
 
-      {/* Overlay */}
-      {sidebarOpen && <div className="lg:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setSidebarOpen(false)} />}
+      {/* Main content */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        {/* Top Header */}
+        <header className="bg-white border-b border-gray-200 px-4 lg:px-6 h-14 flex items-center gap-3 flex-shrink-0 shadow-sm">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-600 transition-colors"
+          >
+            <Menu size={20} />
+          </button>
 
-      {/* Main */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Topbar */}
-        <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 flex-shrink-0">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-1.5 rounded-lg hover:bg-gray-100">
-            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+          {/* Mobile logo */}
+          <div className="lg:hidden flex items-center gap-2">
+            <div className="w-7 h-7 bg-primary-500 rounded-lg flex items-center justify-center">
+              <Pill size={14} className="text-white" />
+            </div>
+            <span className="font-bold text-gray-900 text-sm">PMSS</span>
+          </div>
+
           <div className="flex-1" />
-          <button className="p-2 rounded-lg hover:bg-gray-100 relative">
-            <Bell size={18} className="text-gray-600" />
+
+          <button className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500 transition-colors relative">
+            <Bell size={18} />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
           </button>
-          <div className="text-sm text-gray-600">
-            <span className="font-medium">{user?.fullName}</span>
+
+          <div className="flex items-center gap-2.5 pl-2 border-l border-gray-100">
+            <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+              {initials}
+            </div>
+            <span className="text-sm font-semibold text-gray-800 hidden sm:block">{user?.fullName?.split(' ')[0]}</span>
           </div>
         </header>
 
         {/* Expired Banner */}
         {user?.subscriptionStatus === 'EXPIRED' && (
-          <div className="bg-red-600 text-white text-center py-2.5 text-sm font-medium">
-            ⚠️ Your subscription has expired. Contact Helvino Technologies at helvinotech@gmail.com to renew.
+          <div className="bg-red-500 text-white text-center py-2.5 text-xs sm:text-sm font-medium px-4">
+            Your subscription has expired. Contact us at helvinotech@gmail.com to renew.
           </div>
         )}
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto p-5">
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <Outlet />
         </main>
       </div>

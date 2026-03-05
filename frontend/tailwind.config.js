@@ -6,9 +6,9 @@ export default {
       fontFamily: { sans: ['Inter', 'sans-serif'] },
       colors: {
         primary: {
-          50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe',
-          300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6',
-          600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a'
+          50: '#E7F3FF', 100: '#C3D9FD', 200: '#9EC3FB',
+          300: '#6BA4F8', 400: '#4690F6', 500: '#1877F2',
+          600: '#166FE5', 700: '#1065D5', 800: '#0B55B8', 900: '#083D8A'
         },
         success: { 500: '#22c55e', 600: '#16a34a' },
         danger:  { 500: '#ef4444', 600: '#dc2626' },
