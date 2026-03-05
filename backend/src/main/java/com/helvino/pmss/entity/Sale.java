@@ -1,5 +1,6 @@
 package com.helvino.pmss.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -82,6 +83,7 @@ public class Sale {
     @Column(name = "is_void")
     private Boolean isVoid = false;
 
+    @JsonIgnore
     @Builder.Default
     @OneToMany(mappedBy = "sale", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<SaleItem> items = new ArrayList<>();

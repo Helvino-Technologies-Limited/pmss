@@ -1,5 +1,6 @@
 package com.helvino.pmss.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -54,6 +55,7 @@ public class Purchase {
 
     private String notes;
 
+    @JsonIgnore
     @Builder.Default
     @OneToMany(mappedBy = "purchase", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<PurchaseItem> items = new ArrayList<>();
