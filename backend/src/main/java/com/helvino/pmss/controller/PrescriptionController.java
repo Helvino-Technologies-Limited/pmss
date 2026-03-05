@@ -39,4 +39,15 @@ public class PrescriptionController {
         prescription.setTenantId(tenantId());
         return ResponseEntity.ok(ApiResponse.ok("Prescription saved", prescriptionRepository.save(prescription)));
     }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<Prescription>> updateStatus(
+            @PathVariable UUID id,
+            @RequestBody java.util.Map<String, String> body) {
+        Prescription p = prescriptionRepository.findById(id)
+            .filter(rx -> rx.getTenantId().equals(tenantId()))
+            .orElseThrow(() -> new com.helvino.pmss.exception.ResourceNotFoundException("Prescription not found"));
+        p.setStatus(body.get("status"));
+        return ResponseEntity.ok(ApiResponse.ok("Status updated", prescriptionRepository.save(p)));
+    }
 }
