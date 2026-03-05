@@ -26,10 +26,12 @@ public class SaleService {
     private final SaleRepository saleRepository;
     private final ProductRepository productRepository;
 
+    @Transactional(readOnly = true)
     public List<Sale> getAll(UUID tenantId) {
         return saleRepository.findByTenantIdOrderBySaleDateDesc(tenantId);
     }
 
+    @Transactional(readOnly = true)
     public Sale getById(UUID tenantId, UUID saleId) {
         return saleRepository.findById(saleId)
             .filter(s -> s.getTenantId().equals(tenantId))

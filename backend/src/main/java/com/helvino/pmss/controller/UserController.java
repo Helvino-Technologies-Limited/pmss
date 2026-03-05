@@ -6,13 +6,18 @@ import com.helvino.pmss.dto.response.ApiResponse;
 import com.helvino.pmss.entity.User;
 import com.helvino.pmss.exception.ResourceNotFoundException;
 import com.helvino.pmss.repository.UserRepository;
+import com.helvino.pmss.security.JwtTokenProvider;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -22,6 +27,7 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
 
     private UUID tenantId() {
         return UUID.fromString(TenantContext.getCurrentTenant());
@@ -81,5 +87,34 @@ public class UserController {
         user.setIsActive(false);
         userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.ok("User deactivated", null));
+    }
+
+    @Data
+    static class ChangePasswordRequest {
+        private String currentPassword;
+        private String newPassword;
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            @RequestBody ChangePasswordRequest req,
+            HttpServletRequest httpRequest) {
+        String bearer = httpRequest.getHeader("Authorization");
+        if (!StringUtils.hasText(bearer) || !bearer.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+        String userId = jwtTokenProvider.getUserIdFromToken(bearer.substring(7));
+        User user = userRepository.findById(UUID.fromString(userId))
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!passwordEncoder.matches(req.getCurrentPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("Current password is incorrect");
+        }
+        if (req.getNewPassword() == null || req.getNewPassword().length() < 8) {
+            throw new IllegalArgumentException("New password must be at least 8 characters");
+        }
+        user.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
+        userRepository.save(user);
+        return ResponseEntity.ok(ApiResponse.ok("Password changed successfully", null));
     }
 }

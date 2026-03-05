@@ -6,6 +6,7 @@ import com.helvino.pmss.entity.Prescription;
 import com.helvino.pmss.repository.PrescriptionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +22,7 @@ public class PrescriptionController {
     private UUID tenantId() { return UUID.fromString(TenantContext.getCurrentTenant()); }
 
     @GetMapping
+    @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<List<Prescription>>> getAll() {
         return ResponseEntity.ok(ApiResponse.ok("Prescriptions",
             prescriptionRepository.findByTenantIdOrderByCreatedAtDesc(tenantId())));

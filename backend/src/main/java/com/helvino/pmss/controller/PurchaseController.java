@@ -12,6 +12,7 @@ import com.helvino.pmss.security.JwtTokenProvider;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,12 +44,14 @@ public class PurchaseController {
     }
 
     @GetMapping
+    @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<List<Purchase>>> getAll() {
         return ResponseEntity.ok(ApiResponse.ok("Purchases",
             purchaseRepository.findByTenantIdOrderByPurchaseDateDesc(tenantId())));
     }
 
     @GetMapping("/{id}")
+    @Transactional(readOnly = true)
     public ResponseEntity<ApiResponse<Purchase>> getById(@PathVariable UUID id) {
         Purchase p = purchaseRepository.findById(id)
             .filter(pu -> pu.getTenantId().equals(tenantId()))
