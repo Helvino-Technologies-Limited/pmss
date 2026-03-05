@@ -2,7 +2,7 @@ import { useAuth } from '../context/AuthContext'
 import { X, Printer, MessageCircle } from 'lucide-react'
 import { format } from 'date-fns'
 
-export default function ReceiptModal({ sale, items = [], customerPhone = '', onClose }) {
+export default function ReceiptModal({ sale, items = [], customerPhone = '', customerName = '', onClose }) {
   const { user } = useAuth()
   const pharmacyName = user?.tenantName || user?.businessName || user?.email?.split('@')[0] || 'Pharmacy'
 
@@ -20,6 +20,7 @@ export default function ReceiptModal({ sale, items = [], customerPhone = '', onC
     name: i.drugName || i.name || 'Item',
     qty: i.qty || i.quantity || 1,
     price: Number(i.sellingPrice || i.unitPrice || 0),
+    instructions: i.instructions || '',
   }))
 
   const printReceipt = () => {
@@ -44,11 +45,12 @@ export default function ReceiptModal({ sale, items = [], customerPhone = '', onC
       <h1>${pharmacyName.toUpperCase()}</h1>
       <p class="sub">Invoice: <strong>${sale.invoiceNumber}</strong></p>
       <p class="sub">${date}</p>
+      ${customerName ? `<p class="sub">Patient: <strong>${customerName}</strong></p>` : ''}
       <hr class="dash">
       <table>
         ${itemRows.map(i => `
           <tr>
-            <td><span class="item-name">${i.name}</span><br><span class="item-sub">${i.qty} × KES ${i.price.toLocaleString()}</span></td>
+            <td><span class="item-name">${i.name}</span><br><span class="item-sub">${i.qty} × KES ${i.price.toLocaleString()}</span>${i.instructions ? `<br><span class="item-sub" style="font-style:italic;color:#7c3aed">📋 ${i.instructions}</span>` : ''}</td>
             <td class="r">KES ${(i.price * i.qty).toLocaleString()}</td>
           </tr>`).join('')}
       </table>
@@ -75,9 +77,13 @@ export default function ReceiptModal({ sale, items = [], customerPhone = '', onC
       `*${pharmacyName.toUpperCase()}*`,
       `Invoice: ${sale.invoiceNumber}`,
       `Date: ${date}`,
+      ...(customerName ? [`Patient: ${customerName}`] : []),
       '',
-      '*Items:*',
-      ...itemRows.map(i => `${i.name} ×${i.qty} — KES ${(i.price * i.qty).toLocaleString()}`),
+      '*Items & Dosage Instructions:*',
+      ...itemRows.flatMap(i => [
+        `${i.name} ×${i.qty} — KES ${(i.price * i.qty).toLocaleString()}`,
+        ...(i.instructions ? [`  _${i.instructions}_`] : []),
+      ]),
       '',
       ...(discount > 0 ? [`Discount: -KES ${discount.toLocaleString()}`] : []),
       ...(vat > 0 ? [`VAT: KES ${vat.toLocaleString()}`] : []),
@@ -109,20 +115,27 @@ export default function ReceiptModal({ sale, items = [], customerPhone = '', onC
 
         <div className="overflow-y-auto flex-1 px-5 py-4">
           <p className="text-center font-bold text-base text-gray-900 tracking-wide">{pharmacyName.toUpperCase()}</p>
-          <p className="text-center text-xs text-gray-400 mt-1 mb-4 font-mono">{date}</p>
+          <p className="text-center text-xs text-gray-400 mt-1 font-mono">{date}</p>
+          {customerName && <p className="text-center text-xs text-gray-600 mt-0.5 mb-4">Patient: <strong>{customerName}</strong></p>}
+          {!customerName && <div className="mb-4" />}
 
           <div className="border-t border-dashed border-gray-300 mb-3" />
 
           <div className="space-y-2.5 font-mono">
             {itemRows.map((item, i) => (
-              <div key={i} className="flex justify-between items-start gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{item.name}</p>
-                  <p className="text-xs text-gray-400">{item.qty} × KES {item.price.toLocaleString()}</p>
+              <div key={i} className="space-y-0.5">
+                <div className="flex justify-between items-start gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">{item.name}</p>
+                    <p className="text-xs text-gray-400">{item.qty} × KES {item.price.toLocaleString()}</p>
+                  </div>
+                  <p className="text-sm font-bold text-gray-900 whitespace-nowrap">
+                    KES {(item.price * item.qty).toLocaleString()}
+                  </p>
                 </div>
-                <p className="text-sm font-bold text-gray-900 whitespace-nowrap">
-                  KES {(item.price * item.qty).toLocaleString()}
-                </p>
+                {item.instructions && (
+                  <p className="text-xs text-violet-700 italic pl-1">📋 {item.instructions}</p>
+                )}
               </div>
             ))}
           </div>

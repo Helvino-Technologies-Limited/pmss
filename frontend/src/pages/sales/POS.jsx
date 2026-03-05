@@ -2,8 +2,9 @@ import { useState, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { searchProducts } from '../../api/products'
 import { createSale } from '../../api/sales'
+import api from '../../api/axios'
 import toast from 'react-hot-toast'
-import { Search, Plus, Minus, Trash2, ShoppingCart, Phone } from 'lucide-react'
+import { Search, Plus, Minus, Trash2, ShoppingCart, Phone, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react'
 import ReceiptModal from '../../components/ReceiptModal'
 
 const PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_MONEY', 'INSURANCE', 'CREDIT']
@@ -16,7 +17,10 @@ export default function POS() {
   const [amountPaid, setAmountPaid] = useState('')
   const [discount, setDiscount] = useState(0)
   const [customerPhone, setCustomerPhone] = useState('')
-  const [receipt, setReceipt] = useState(null) // { sale, items }
+  const [customerName, setCustomerName] = useState('')
+  const [doctorName, setDoctorName] = useState('')
+  const [showPrescription, setShowPrescription] = useState(false)
+  const [receipt, setReceipt] = useState(null)
   const [searching, setSearching] = useState(false)
   const searchTimeout = useRef(null)
   const qc = useQueryClient()
@@ -26,6 +30,8 @@ export default function POS() {
   const total = subtotal + vatTotal - discount
   const change = Math.max(0, parseFloat(amountPaid || 0) - total)
   const balanceDue = Math.max(0, total - parseFloat(amountPaid || 0))
+
+  const hasInstructions = cart.some(i => i.instructions?.trim())
 
   const handleSearch = (val) => {
     setQuery(val)
@@ -48,7 +54,7 @@ export default function POS() {
         return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
       }
       if (product.quantity < 1) { toast.error('Out of stock'); return prev }
-      return [...prev, { ...product, qty: 1 }]
+      return [...prev, { ...product, qty: 1, instructions: '', showInstructions: false }]
     })
     setQuery(''); setResults([])
   }
@@ -63,32 +69,65 @@ export default function POS() {
     }).filter(Boolean))
   }
 
+  const updateInstructions = (id, val) => {
+    setCart(prev => prev.map(i => i.id === id ? { ...i, instructions: val } : i))
+  }
+
+  const toggleInstructions = (id) => {
+    setCart(prev => prev.map(i => i.id === id ? { ...i, showInstructions: !i.showInstructions } : i))
+  }
+
   const saleMut = useMutation({
-    mutationFn: createSale,
-    onSuccess: (res) => {
-      const sale = res.data.data
+    mutationFn: async () => {
+      // If any drug has instructions, create a prescription first
+      let prescriptionId = null
+      if (hasInstructions || doctorName) {
+        const notes = cart
+          .filter(i => i.instructions?.trim())
+          .map(i => `${i.drugName}${i.strength ? ` (${i.strength})` : ''}: ${i.instructions}`)
+          .join('\n')
+
+        try {
+          const rxRes = await api.post('/prescriptions', {
+            prescriptionDate: new Date().toISOString().slice(0, 10),
+            doctorName: doctorName || undefined,
+            notes: notes || cart.map(i => i.drugName).join(', '),
+          })
+          prescriptionId = rxRes.data.data?.id
+        } catch {
+          // Non-fatal — proceed without linking prescription
+        }
+      }
+
+      const res = await createSale({
+        items: cart.map(i => ({
+          productId: i.id,
+          quantity: i.qty,
+          unitPrice: i.sellingPrice,
+          discountPercent: 0,
+        })),
+        paymentMethod,
+        amountPaid: parseFloat(amountPaid || total),
+        discountAmount: discount,
+        notes: customerName || undefined,
+        prescriptionId: prescriptionId || undefined,
+      })
+      return res.data.data
+    },
+    onSuccess: (sale) => {
       setReceipt({ sale, items: cart })
-      setCart([]); setAmountPaid(''); setDiscount(0); setCustomerPhone('')
-      qc.invalidateQueries(['sales', 'dashboard'])
+      setCart([])
+      setAmountPaid('')
+      setDiscount(0)
+      setCustomerPhone('')
+      setCustomerName('')
+      setDoctorName('')
+      setShowPrescription(false)
+      qc.invalidateQueries(['sales', 'dashboard', 'products'])
       toast.success(`Sale #${sale.invoiceNumber} completed!`)
     },
     onError: (err) => toast.error(err.response?.data?.message || 'Sale failed')
   })
-
-  const completeSale = () => {
-    if (!cart.length) return toast.error('Cart is empty')
-    saleMut.mutate({
-      items: cart.map(i => ({
-        productId: i.id,
-        quantity: i.qty,
-        unitPrice: i.sellingPrice,
-        discountPercent: 0
-      })),
-      paymentMethod,
-      amountPaid: parseFloat(amountPaid || total),
-      discountAmount: discount
-    })
-  }
 
   return (
     <div className="h-full">
@@ -137,31 +176,56 @@ export default function POS() {
             ) : (
               <div className="divide-y divide-gray-100">
                 {cart.map(item => (
-                  <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 text-sm truncate">{item.drugName}</p>
-                      <p className="text-xs text-gray-500">KES {Number(item.sellingPrice).toLocaleString()} each</p>
+                  <div key={item.id} className="px-4 py-3 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 text-sm truncate">{item.drugName}</p>
+                        <p className="text-xs text-gray-500">KES {Number(item.sellingPrice).toLocaleString()} each</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => updateQty(item.id, -1)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
+                          <Minus size={12} />
+                        </button>
+                        <span className="w-8 text-center font-bold text-sm">{item.qty}</span>
+                        <button onClick={() => updateQty(item.id, 1)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
+                          <Plus size={12} />
+                        </button>
+                      </div>
+                      <div className="w-24 text-right">
+                        <p className="font-bold text-gray-900 text-sm">
+                          KES {(item.sellingPrice * item.qty).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => toggleInstructions(item.id)}
+                          title="Add dosage instructions"
+                          className={`p-1.5 rounded-lg transition-colors ${item.instructions ? 'text-violet-600 bg-violet-50' : 'text-gray-400 hover:bg-gray-100'}`}>
+                          <ClipboardList size={14} />
+                        </button>
+                        <button onClick={() => setCart(c => c.filter(i => i.id !== item.id))}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => updateQty(item.id, -1)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
-                        <Minus size={12} />
-                      </button>
-                      <span className="w-8 text-center font-bold text-sm">{item.qty}</span>
-                      <button onClick={() => updateQty(item.id, 1)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
-                        <Plus size={12} />
-                      </button>
-                    </div>
-                    <div className="w-24 text-right">
-                      <p className="font-bold text-gray-900 text-sm">
-                        KES {(item.sellingPrice * item.qty).toLocaleString()}
-                      </p>
-                    </div>
-                    <button onClick={() => setCart(c => c.filter(i => i.id !== item.id))}
-                      className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
+
+                    {/* Inline dosage instructions */}
+                    {item.showInstructions && (
+                      <div className="ml-0">
+                        <input
+                          className="input text-xs py-2"
+                          placeholder="Dosage instructions e.g. Take 1 tablet 3× daily after meals for 7 days"
+                          value={item.instructions}
+                          onChange={e => updateInstructions(item.id, e.target.value)}
+                          autoFocus
+                        />
+                      </div>
+                    )}
+                    {!item.showInstructions && item.instructions && (
+                      <p className="text-xs text-violet-700 italic pl-1">📋 {item.instructions}</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -174,14 +238,37 @@ export default function POS() {
           <div className="card space-y-4">
             <h2 className="font-semibold text-gray-900">Payment</h2>
 
-            {/* Customer Phone */}
+            {/* Patient & Prescription Info */}
             <div>
-              <label className="label">Customer Phone (for WhatsApp receipt)</label>
-              <div className="relative">
-                <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input className="input pl-8" placeholder="+254 7XX XXX XXX"
-                  value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowPrescription(!showPrescription)}
+                className="flex items-center gap-2 text-sm font-medium text-violet-600 hover:text-violet-800 transition-colors"
+              >
+                <ClipboardList size={15} />
+                Patient / Prescription Info
+                {showPrescription ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              {showPrescription && (
+                <div className="mt-2 space-y-2">
+                  <input className="input text-sm" placeholder="Patient name (optional)"
+                    value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                  <div className="relative">
+                    <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input className="input text-sm pl-8" placeholder="Phone for WhatsApp receipt (+254...)"
+                      value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
+                  </div>
+                  <input className="input text-sm" placeholder="Doctor name (if prescribed)"
+                    value={doctorName} onChange={e => setDoctorName(e.target.value)} />
+                </div>
+              )}
+              {!showPrescription && (
+                <div className="mt-1 relative">
+                  <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input className="input text-sm pl-8" placeholder="Customer phone for WhatsApp receipt"
+                    value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
+                </div>
+              )}
             </div>
 
             {/* Totals */}
@@ -255,7 +342,7 @@ export default function POS() {
               </div>
             )}
 
-            <button onClick={completeSale} disabled={saleMut.isPending || !cart.length}
+            <button onClick={() => saleMut.mutate()} disabled={saleMut.isPending || !cart.length}
               className="btn-primary w-full py-3.5 text-base font-bold">
               {saleMut.isPending ? 'Processing...' : `Complete Sale — KES ${total.toLocaleString('en', { minimumFractionDigits: 2 })}`}
             </button>
@@ -268,6 +355,7 @@ export default function POS() {
           sale={receipt.sale}
           items={receipt.items}
           customerPhone={customerPhone}
+          customerName={customerName}
           onClose={() => setReceipt(null)}
         />
       )}

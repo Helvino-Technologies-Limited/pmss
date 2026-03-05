@@ -60,6 +60,7 @@ public class PurchaseController {
     }
 
     @PostMapping
+    @Transactional
     public ResponseEntity<ApiResponse<Purchase>> create(@RequestBody Purchase purchase,
                                                          HttpServletRequest request) {
         purchase.setTenantId(tenantId());
@@ -87,6 +88,7 @@ public class PurchaseController {
     }
 
     @PostMapping("/{id}/receive")
+    @Transactional
     public ResponseEntity<ApiResponse<Purchase>> receivePurchase(@PathVariable UUID id) {
         Purchase purchase = purchaseRepository.findById(id)
             .filter(p -> p.getTenantId().equals(tenantId()))
