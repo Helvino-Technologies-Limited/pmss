@@ -1,17 +1,88 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getTenant, activateTenant, toggleTenant } from '../../api/tenants'
+import { getTenant, activateTenant, toggleTenant, extendTenant, impersonateTenant } from '../../api/tenants'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { ArrowLeft, CheckCircle, XCircle, RefreshCw, Building2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, RefreshCw, Building2, LogIn, CalendarPlus, X } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+
+function ExtendModal({ tenant, onClose, onExtended }) {
+  const [months, setMonths] = useState(12)
+  const qc = useQueryClient()
+
+  const mut = useMutation({
+    mutationFn: () => extendTenant(tenant.id, months),
+    onSuccess: () => {
+      qc.invalidateQueries(['tenant', tenant.id])
+      qc.invalidateQueries(['admin-tenants'])
+      toast.success(`Subscription extended by ${months} month${months > 1 ? 's' : ''}`)
+      onClose()
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Failed to extend subscription')
+  })
+
+  const currentEnd = tenant.subscriptionEndDate
+    ? new Date(tenant.subscriptionEndDate)
+    : null
+  const newEnd = new Date(
+    currentEnd && currentEnd > new Date() ? currentEnd : new Date()
+  )
+  newEnd.setMonth(newEnd.getMonth() + months)
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-900">Extend Subscription</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm">
+            <p className="font-semibold text-blue-800">{tenant.pharmacyName}</p>
+            <p className="text-blue-600 text-xs mt-0.5">
+              Current end: {currentEnd ? currentEnd.toLocaleDateString() : 'Not set'}
+            </p>
+          </div>
+          <div>
+            <label className="label">Extend by</label>
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 3, 6, 12].map(m => (
+                <button key={m} onClick={() => setMonths(m)}
+                  className={`py-2.5 rounded-lg text-sm font-medium border transition-colors ${
+                    months === m
+                      ? 'bg-primary-600 text-white border-primary-600'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-primary-400'
+                  }`}>
+                  {m === 12 ? '1 year' : `${m} mo`}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-sm text-center">
+            <p className="text-green-600 text-xs">New expiry date</p>
+            <p className="font-bold text-green-800 text-base mt-0.5">{newEnd.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          </div>
+        </div>
+        <div className="px-5 pb-5 flex gap-3">
+          <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+          <button onClick={() => mut.mutate()} disabled={mut.isPending} className="btn-primary flex-1">
+            {mut.isPending ? 'Extending...' : 'Confirm Extension'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function TenantDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { login } = useAuth()
   const [paymentMethod, setPaymentMethod] = useState('MPESA')
   const [reference, setReference] = useState('')
   const [paymentType, setPaymentType] = useState('SETUP')
+  const [showExtend, setShowExtend] = useState(false)
 
   const { data, isLoading } = useQuery({ queryKey: ['tenant', id], queryFn: () => getTenant(id) })
   const tenant = data?.data?.data
@@ -29,12 +100,29 @@ export default function TenantDetail() {
 
   const toggleMut = useMutation({
     mutationFn: (active) => toggleTenant(id, active),
-    onSuccess: () => {
+    onSuccess: (_, active) => {
       qc.invalidateQueries(['tenant', id])
       qc.invalidateQueries(['admin-tenants'])
-      toast.success('Tenant status updated')
+      toast.success(active ? 'Tenant activated' : 'Tenant deactivated')
     },
     onError: () => toast.error('Failed to update status')
+  })
+
+  const impersonateMut = useMutation({
+    mutationFn: () => impersonateTenant(id),
+    onSuccess: (res) => {
+      const authData = res.data.data
+      // Save the current super admin session
+      const saToken = localStorage.getItem('pmss_token')
+      const saUser = localStorage.getItem('pmss_user')
+      localStorage.setItem('pmss_sa_token', saToken)
+      localStorage.setItem('pmss_sa_user', saUser)
+      // Switch to tenant admin session
+      login(authData)
+      toast.success(`Now viewing as ${authData.pharmacyName} admin`)
+      navigate('/dashboard')
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Failed to impersonate tenant')
   })
 
   if (isLoading) return (
@@ -47,19 +135,32 @@ export default function TenantDetail() {
     <div className="text-center py-20 text-gray-500">Tenant not found</div>
   )
 
+  const statusColor = {
+    ACTIVE: 'badge-green', TRIAL: 'badge-yellow', EXPIRED: 'badge-red'
+  }
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-4">
         <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
           <ArrowLeft size={20} />
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-900">{tenant.pharmacyName}</h1>
           <p className="text-gray-500 text-sm">Tenant Management</p>
         </div>
+        <button
+          onClick={() => impersonateMut.mutate()}
+          disabled={impersonateMut.isPending}
+          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors"
+        >
+          <LogIn size={16} />
+          {impersonateMut.isPending ? 'Logging in...' : 'Login as Admin'}
+        </button>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
+        {/* Tenant Info */}
         <div className="card space-y-4">
           <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
             <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
@@ -71,44 +172,30 @@ export default function TenantDetail() {
             </div>
           </div>
           <div className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Email</span>
-              <span className="font-medium text-gray-900">{tenant.email}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Phone</span>
-              <span className="font-medium text-gray-900">{tenant.phone}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">KRA PIN</span>
-              <span className="font-medium text-gray-900">{tenant.kraPin || '-'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">License</span>
-              <span className="font-medium text-gray-900">{tenant.licenseNumber || '-'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Address</span>
-              <span className="font-medium text-gray-900 text-right max-w-48">{tenant.physicalAddress || '-'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Registered</span>
-              <span className="font-medium text-gray-900">
-                {tenant.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : '-'}
-              </span>
-            </div>
+            {[
+              ['Email', tenant.email],
+              ['Phone', tenant.phone],
+              ['KRA PIN', tenant.kraPin || '-'],
+              ['License', tenant.licenseNumber || '-'],
+              ['Address', tenant.physicalAddress || '-'],
+              ['Registered', tenant.createdAt ? new Date(tenant.createdAt).toLocaleDateString() : '-'],
+            ].map(([label, value]) => (
+              <div key={label} className="flex justify-between">
+                <span className="text-gray-500">{label}</span>
+                <span className="font-medium text-gray-900 text-right max-w-56">{value}</span>
+              </div>
+            ))}
           </div>
         </div>
 
+        {/* Subscription */}
         <div className="card space-y-4">
-          <h2 className="font-semibold text-gray-900 pb-3 border-b border-gray-100">Subscription Status</h2>
+          <h2 className="font-semibold text-gray-900 pb-3 border-b border-gray-100">Subscription</h2>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between items-center">
               <span className="text-gray-500">Status</span>
-              <span>
-                {tenant.subscriptionStatus === 'ACTIVE' && <span className="badge-green">Active</span>}
-                {tenant.subscriptionStatus === 'TRIAL' && <span className="badge-yellow">Trial</span>}
-                {tenant.subscriptionStatus === 'EXPIRED' && <span className="badge-red">Expired</span>}
+              <span className={statusColor[tenant.subscriptionStatus] || 'badge-gray'}>
+                {tenant.subscriptionStatus}
               </span>
             </div>
             <div className="flex justify-between">
@@ -129,35 +216,43 @@ export default function TenantDetail() {
             </div>
             <div className="flex justify-between items-center">
               <span className="text-gray-500">Account Active</span>
-              <span>
-                {tenant.isActive ? <span className="badge-green">Yes</span> : <span className="badge-red">No</span>}
-              </span>
+              {tenant.isActive ? <span className="badge-green">Yes</span> : <span className="badge-red">No</span>}
             </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <button
+              onClick={() => setShowExtend(true)}
+              className="flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+            >
+              <CalendarPlus size={15} /> Extend
+            </button>
             <button
               onClick={() => toggleMut.mutate(!tenant.isActive)}
               disabled={toggleMut.isPending}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-colors ${
                 tenant.isActive
-                  ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                  : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
-              }`}>
-              {tenant.isActive ? <><XCircle size={16} /> Deactivate</> : <><CheckCircle size={16} /> Activate</>}
+                  ? 'bg-red-50 text-red-700 hover:bg-red-100 border-red-200'
+                  : 'bg-green-50 text-green-700 hover:bg-green-100 border-green-200'
+              }`}
+            >
+              {tenant.isActive
+                ? <><XCircle size={15} /> Deactivate</>
+                : <><CheckCircle size={15} /> Activate</>}
             </button>
           </div>
         </div>
       </div>
 
+      {/* Payment Recording */}
       <div className="card space-y-4">
         <h2 className="font-semibold text-gray-900 pb-3 border-b border-gray-100">Record Subscription Payment</h2>
         <div className="grid sm:grid-cols-3 gap-4">
           <div>
             <label className="label">Payment Type</label>
             <select className="input" value={paymentType} onChange={e => setPaymentType(e.target.value)}>
-              <option value="SETUP">Setup Fee - KES 20,000</option>
-              <option value="ANNUAL_RENEWAL">Annual Renewal - KES 15,000</option>
+              <option value="SETUP">Setup Fee — KES 20,000</option>
+              <option value="ANNUAL_RENEWAL">Annual Renewal — KES 15,000</option>
             </select>
           </div>
           <div>
@@ -179,15 +274,23 @@ export default function TenantDetail() {
           <button
             onClick={() => activateMut.mutate()}
             disabled={activateMut.isPending || !reference.trim()}
-            className="btn-primary flex items-center gap-2 px-6">
+            className="btn-primary flex items-center gap-2 px-6"
+          >
             <RefreshCw size={16} />
             {activateMut.isPending ? 'Processing...' : 'Confirm Payment & Activate'}
           </button>
         </div>
         <p className="text-xs text-gray-400">
-          Recording a payment will set subscription status to ACTIVE and extend it by 1 year from today.
+          Recording a payment sets status to ACTIVE and extends subscription by 1 year from today.
         </p>
       </div>
+
+      {showExtend && (
+        <ExtendModal
+          tenant={tenant}
+          onClose={() => setShowExtend(false)}
+        />
+      )}
     </div>
   )
 }

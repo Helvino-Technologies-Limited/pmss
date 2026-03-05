@@ -1,6 +1,7 @@
 package com.helvino.pmss.controller;
 
 import com.helvino.pmss.dto.response.ApiResponse;
+import com.helvino.pmss.dto.response.AuthResponse;
 import com.helvino.pmss.entity.Tenant;
 import com.helvino.pmss.service.TenantService;
 import lombok.RequiredArgsConstructor;
@@ -50,5 +51,20 @@ public class SuperAdminController {
             @RequestBody Map<String, Boolean> body) {
         return ResponseEntity.ok(ApiResponse.ok("Tenant updated",
             tenantService.toggleTenant(id, body.get("active"))));
+    }
+
+    @PostMapping("/tenants/{id}/extend")
+    public ResponseEntity<ApiResponse<Tenant>> extendSubscription(
+            @PathVariable UUID id,
+            @RequestBody Map<String, Integer> body) {
+        int months = body.getOrDefault("months", 12);
+        return ResponseEntity.ok(ApiResponse.ok("Subscription extended",
+            tenantService.extendSubscription(id, months)));
+    }
+
+    @PostMapping("/tenants/{id}/impersonate")
+    public ResponseEntity<ApiResponse<AuthResponse>> impersonate(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok("Impersonating tenant admin",
+            tenantService.impersonate(id)));
     }
 }

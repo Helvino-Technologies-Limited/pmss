@@ -187,12 +187,28 @@ function MoreSheet({ items, onClose }) {
 }
 
 export default function DashboardLayout({ isAdmin }) {
-  const { user, logout, isTrial, isTenantAdmin } = useAuth()
+  const { user, logout, login, isTrial, isTenantAdmin } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showNotifs, setShowNotifs] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showMore, setShowMore] = useState(false)
+
+  const isImpersonating = !!localStorage.getItem('pmss_sa_token')
+
+  const exitImpersonation = () => {
+    const saUser = localStorage.getItem('pmss_sa_user')
+    const saToken = localStorage.getItem('pmss_sa_token')
+    localStorage.removeItem('pmss_sa_token')
+    localStorage.removeItem('pmss_sa_user')
+    if (saUser && saToken) {
+      login(JSON.parse(saUser))
+      navigate('/admin/tenants')
+    } else {
+      logout()
+      navigate('/login')
+    }
+  }
 
   const nav = isAdmin
     ? adminNav
@@ -319,6 +335,20 @@ export default function DashboardLayout({ isAdmin }) {
             <span className="text-sm font-semibold text-gray-800 hidden sm:block">{user?.fullName?.split(' ')[0]}</span>
           </button>
         </header>
+
+        {isImpersonating && (
+          <div className="bg-violet-600 text-white py-2 px-4 flex items-center justify-between flex-shrink-0 text-sm">
+            <span className="font-medium">
+              Viewing as <strong>{user?.pharmacyName}</strong> admin ({user?.email})
+            </span>
+            <button
+              onClick={exitImpersonation}
+              className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-xs font-semibold transition-colors"
+            >
+              <LogOut size={13} /> Exit to Super Admin
+            </button>
+          </div>
+        )}
 
         {user?.subscriptionStatus === 'EXPIRED' && (
           <div className="bg-red-500 text-white text-center py-2.5 text-xs sm:text-sm font-medium px-4 flex-shrink-0">
