@@ -1,0 +1,10 @@
+import api from './axios'
+export const getProducts = () => api.get('/products')
+export const getProduct = (id) => api.get(`/products/${id}`)
+export const getByBarcode = (barcode) => api.get(`/products/barcode/${barcode}`)
+export const searchProducts = (q) => api.get(`/products/search?q=${q}`)
+export const getExpiring = (days = 90) => api.get(`/products/expiring?days=${days}`)
+export const getLowStock = () => api.get('/products/low-stock')
+export const createProduct = (data) => api.post('/products', data)
+export const updateProduct = (id, data) => api.put(`/products/${id}`, data)
+export const deleteProduct = (id) => api.delete(`/products/${id}`)
