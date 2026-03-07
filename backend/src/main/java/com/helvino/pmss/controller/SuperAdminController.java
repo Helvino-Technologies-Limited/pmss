@@ -3,6 +3,7 @@ package com.helvino.pmss.controller;
 import com.helvino.pmss.dto.response.ApiResponse;
 import com.helvino.pmss.dto.response.AuthResponse;
 import com.helvino.pmss.entity.Tenant;
+import com.helvino.pmss.entity.User;
 import com.helvino.pmss.service.TenantService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -66,5 +67,23 @@ public class SuperAdminController {
     public ResponseEntity<ApiResponse<AuthResponse>> impersonate(@PathVariable UUID id) {
         return ResponseEntity.ok(ApiResponse.ok("Impersonating tenant admin",
             tenantService.impersonate(id)));
+    }
+
+    @GetMapping("/tenants/{id}/users")
+    public ResponseEntity<ApiResponse<List<User>>> getTenantUsers(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.ok("Tenant users", tenantService.getTenantUsers(id)));
+    }
+
+    @PostMapping("/tenants/{id}/users/{userId}/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetUserPassword(
+            @PathVariable UUID id,
+            @PathVariable UUID userId,
+            @RequestBody Map<String, String> body) {
+        String newPassword = body.get("newPassword");
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new IllegalArgumentException("Password must be at least 6 characters");
+        }
+        tenantService.resetUserPassword(id, userId, newPassword);
+        return ResponseEntity.ok(ApiResponse.ok("Password reset successfully", null));
     }
 }

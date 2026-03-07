@@ -12,6 +12,7 @@ import com.helvino.pmss.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,7 @@ public class TenantService {
     private final SubscriptionPaymentRepository paymentRepository;
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final PasswordEncoder passwordEncoder;
 
     public List<Tenant> getAllTenants() {
         return tenantRepository.findAll();
@@ -127,6 +129,21 @@ public class TenantService {
         tenant.setSubscriptionStatus("ACTIVE");
         tenant.setIsActive(true);
         return tenantRepository.save(tenant);
+    }
+
+    public List<User> getTenantUsers(UUID tenantId) {
+        getById(tenantId); // ensure tenant exists
+        return userRepository.findByTenantId(tenantId);
+    }
+
+    @Transactional
+    public void resetUserPassword(UUID tenantId, UUID userId, String newPassword) {
+        User user = userRepository.findById(userId)
+            .filter(u -> tenantId.equals(u.getTenantId()))
+            .orElseThrow(() -> new ResourceNotFoundException("User not found for this tenant"));
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+        log.info("Password reset for user {} by superadmin", user.getEmail());
     }
 
     // Auto-deactivate expired trial/subscriptions every hour

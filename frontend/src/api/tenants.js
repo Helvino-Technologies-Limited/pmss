@@ -5,3 +5,6 @@ export const activateTenant = (id, data) => api.post(`/superadmin/tenants/${id}/
 export const toggleTenant = (id, active) => api.post(`/superadmin/tenants/${id}/toggle`, { active })
 export const extendTenant = (id, months) => api.post(`/superadmin/tenants/${id}/extend`, { months })
 export const impersonateTenant = (id) => api.post(`/superadmin/tenants/${id}/impersonate`)
+export const getTenantUsers = (id) => api.get(`/superadmin/tenants/${id}/users`)
+export const resetUserPassword = (tenantId, userId, newPassword) =>
+  api.post(`/superadmin/tenants/${tenantId}/users/${userId}/reset-password`, { newPassword })

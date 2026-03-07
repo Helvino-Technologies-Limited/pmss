@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useParams, useNavigate } from 'react-router-dom'
-import { getTenant, activateTenant, toggleTenant, extendTenant, impersonateTenant } from '../../api/tenants'
+import { getTenant, activateTenant, toggleTenant, extendTenant, impersonateTenant, getTenantUsers, resetUserPassword } from '../../api/tenants'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { ArrowLeft, CheckCircle, XCircle, RefreshCw, Building2, LogIn, CalendarPlus, X } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, RefreshCw, Building2, LogIn, CalendarPlus, X, Users, KeyRound, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 function ExtendModal({ tenant, onClose, onExtended }) {
@@ -74,6 +74,67 @@ function ExtendModal({ tenant, onClose, onExtended }) {
   )
 }
 
+function ResetPasswordModal({ tenantId, user, onClose }) {
+  const [password, setPassword] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const qc = useQueryClient()
+
+  const mut = useMutation({
+    mutationFn: () => resetUserPassword(tenantId, user.id, password),
+    onSuccess: () => {
+      toast.success(`Password reset for ${user.email}`)
+      onClose()
+    },
+    onError: (e) => toast.error(e.response?.data?.message || 'Failed to reset password')
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-900">Reset Password</h2>
+          <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm">
+            <p className="font-semibold text-blue-800">{user.firstName} {user.lastName}</p>
+            <p className="text-blue-600 text-xs mt-0.5">{user.email} · {user.role}</p>
+          </div>
+          <div>
+            <label className="label">New Password</label>
+            <div className="relative">
+              <input
+                className="input pr-11"
+                type={showPass ? 'text' : 'password'}
+                placeholder="Min. 6 characters"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+              >
+                {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="px-5 pb-5 flex gap-3">
+          <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+          <button
+            onClick={() => mut.mutate()}
+            disabled={mut.isPending || password.length < 6}
+            className="btn-primary flex-1"
+          >
+            {mut.isPending ? 'Resetting...' : 'Reset Password'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function TenantDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -83,9 +144,17 @@ export default function TenantDetail() {
   const [reference, setReference] = useState('')
   const [paymentType, setPaymentType] = useState('SETUP')
   const [showExtend, setShowExtend] = useState(false)
+  const [resetUser, setResetUser] = useState(null)
 
   const { data, isLoading } = useQuery({ queryKey: ['tenant', id], queryFn: () => getTenant(id) })
   const tenant = data?.data?.data
+
+  const { data: usersData } = useQuery({
+    queryKey: ['tenant-users', id],
+    queryFn: () => getTenantUsers(id),
+    enabled: !!id
+  })
+  const tenantUsers = usersData?.data?.data || []
 
   const activateMut = useMutation({
     mutationFn: () => activateTenant(id, { paymentMethod, reference, paymentType }),
@@ -285,10 +354,51 @@ export default function TenantDetail() {
         </p>
       </div>
 
+      {/* Users */}
+      <div className="card space-y-4">
+        <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+          <Users size={18} className="text-gray-500" />
+          <h2 className="font-semibold text-gray-900">Users</h2>
+        </div>
+        {tenantUsers.length === 0 ? (
+          <p className="text-sm text-gray-400 py-2">No users found for this tenant.</p>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {tenantUsers.map(u => (
+              <div key={u.id} className="flex items-center justify-between py-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{u.firstName} {u.lastName}</p>
+                  <p className="text-xs text-gray-500">{u.email} · {u.role}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {u.isActive
+                    ? <span className="badge-green text-xs">Active</span>
+                    : <span className="badge-red text-xs">Disabled</span>}
+                  <button
+                    onClick={() => setResetUser(u)}
+                    className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-200 transition-colors"
+                  >
+                    <KeyRound size={13} /> Reset Password
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {showExtend && (
         <ExtendModal
           tenant={tenant}
           onClose={() => setShowExtend(false)}
+        />
+      )}
+
+      {resetUser && (
+        <ResetPasswordModal
+          tenantId={id}
+          user={resetUser}
+          onClose={() => setResetUser(null)}
         />
       )}
     </div>
