@@ -90,7 +90,7 @@ public class TenantService {
         return tenantRepository.save(tenant);
     }
 
-    public AuthResponse impersonate(UUID tenantId) {
+    public AuthResponse impersonate(UUID tenantId, UUID superAdminUserId) {
         Tenant tenant = getById(tenantId);
         User admin = userRepository.findByTenantId(tenantId).stream()
             .filter(u -> "TENANT_ADMIN".equals(u.getRole()) && Boolean.TRUE.equals(u.getIsActive()))
@@ -102,8 +102,9 @@ public class TenantService {
             daysLeft = Math.max(0, ChronoUnit.DAYS.between(LocalDate.now(), tenant.getTrialEndDate().toLocalDate()));
         }
 
-        String token = jwtTokenProvider.generateToken(
-            admin.getEmail(), tenantId.toString(), admin.getRole(), admin.getId().toString());
+        String token = jwtTokenProvider.generateImpersonationToken(
+            admin.getEmail(), tenantId.toString(), admin.getRole(),
+            admin.getId().toString(), superAdminUserId.toString());
 
         return AuthResponse.builder()
             .token(token)
@@ -115,6 +116,32 @@ public class TenantService {
             .pharmacyName(tenant.getPharmacyName())
             .subscriptionStatus(tenant.getSubscriptionStatus())
             .trialDaysLeft(daysLeft)
+            .superAdminId(superAdminUserId.toString())
+            .build();
+    }
+
+    public AuthResponse exitImpersonation(String impersonationToken) {
+        String superAdminId = jwtTokenProvider.getSuperAdminIdFromToken(impersonationToken);
+        if (superAdminId == null) {
+            throw new IllegalArgumentException("Not an impersonation session");
+        }
+        User sa = userRepository.findById(UUID.fromString(superAdminId))
+            .orElseThrow(() -> new ResourceNotFoundException("Super admin not found"));
+        if (!"SUPER_ADMIN".equals(sa.getRole())) {
+            throw new IllegalArgumentException("Invalid impersonation session");
+        }
+        String token = jwtTokenProvider.generateToken(
+            sa.getEmail(), "SUPER_ADMIN", sa.getRole(), sa.getId().toString());
+        return AuthResponse.builder()
+            .token(token)
+            .tokenType("Bearer")
+            .email(sa.getEmail())
+            .fullName(sa.getFirstName() + " " + sa.getLastName())
+            .role(sa.getRole())
+            .tenantId("SUPER_ADMIN")
+            .pharmacyName("Helvino Admin")
+            .subscriptionStatus("ACTIVE")
+            .trialDaysLeft(0L)
             .build();
     }
 

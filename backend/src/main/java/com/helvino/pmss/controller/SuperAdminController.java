@@ -4,10 +4,13 @@ import com.helvino.pmss.dto.response.ApiResponse;
 import com.helvino.pmss.dto.response.AuthResponse;
 import com.helvino.pmss.entity.Tenant;
 import com.helvino.pmss.entity.User;
+import com.helvino.pmss.security.JwtTokenProvider;
 import com.helvino.pmss.service.TenantService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +24,7 @@ import java.util.UUID;
 public class SuperAdminController {
 
     private final TenantService tenantService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @GetMapping("/tenants")
     public ResponseEntity<ApiResponse<List<Tenant>>> getAllTenants() {
@@ -64,9 +68,16 @@ public class SuperAdminController {
     }
 
     @PostMapping("/tenants/{id}/impersonate")
-    public ResponseEntity<ApiResponse<AuthResponse>> impersonate(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<AuthResponse>> impersonate(
+            @PathVariable UUID id,
+            HttpServletRequest request) {
+        String bearer = request.getHeader("Authorization");
+        if (!StringUtils.hasText(bearer) || !bearer.startsWith("Bearer ")) {
+            throw new IllegalArgumentException("Unauthorized");
+        }
+        UUID superAdminUserId = UUID.fromString(jwtTokenProvider.getUserIdFromToken(bearer.substring(7)));
         return ResponseEntity.ok(ApiResponse.ok("Impersonating tenant admin",
-            tenantService.impersonate(id)));
+            tenantService.impersonate(id, superAdminUserId)));
     }
 
     @GetMapping("/tenants/{id}/users")

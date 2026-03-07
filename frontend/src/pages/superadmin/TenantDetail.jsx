@@ -180,15 +180,8 @@ export default function TenantDetail() {
   const impersonateMut = useMutation({
     mutationFn: () => impersonateTenant(id),
     onSuccess: (res) => {
-      const authData = res.data.data
-      // Save the current super admin session
-      const saToken = localStorage.getItem('pmss_token')
-      const saUser = localStorage.getItem('pmss_user')
-      localStorage.setItem('pmss_sa_token', saToken)
-      localStorage.setItem('pmss_sa_user', saUser)
-      // Switch to tenant admin session
-      login(authData)
-      toast.success(`Now viewing as ${authData.pharmacyName} admin`)
+      login(res.data.data)
+      toast.success(`Now viewing as ${res.data.data.pharmacyName} admin`)
       navigate('/dashboard')
     },
     onError: (e) => toast.error(e.response?.data?.message || 'Failed to impersonate tenant')

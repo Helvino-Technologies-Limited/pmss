@@ -14,4 +14,5 @@ public class AuthResponse {
     private String pharmacyName;
     private String subscriptionStatus;
     private Long trialDaysLeft;
+    private String superAdminId;
 }

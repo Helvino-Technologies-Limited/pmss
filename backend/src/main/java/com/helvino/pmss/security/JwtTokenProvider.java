@@ -42,6 +42,26 @@ public class JwtTokenProvider {
             .compact();
     }
 
+    public String generateImpersonationToken(String email, String tenantId, String role, String userId, String superAdminId) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("tenantId", tenantId);
+        claims.put("role", role);
+        claims.put("userId", userId);
+        claims.put("superAdminId", superAdminId);
+
+        return Jwts.builder()
+            .claims(claims)
+            .subject(email)
+            .issuedAt(new Date())
+            .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
+            .signWith(getSigningKey())
+            .compact();
+    }
+
+    public String getSuperAdminIdFromToken(String token) {
+        return (String) parseClaims(token).get("superAdminId");
+    }
+
     public String getEmailFromToken(String token) {
         return parseClaims(token).getSubject();
     }

@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { exitImpersonation as exitImpersonationApi } from '../api/auth'
 import {
   LayoutDashboard, Package, ShoppingCart, Users, Truck,
   FileText, DollarSign, BarChart2, UserCog, LogOut,
@@ -194,17 +195,15 @@ export default function DashboardLayout({ isAdmin }) {
   const [showProfile, setShowProfile] = useState(false)
   const [showMore, setShowMore] = useState(false)
 
-  const isImpersonating = !!localStorage.getItem('pmss_sa_token') && user?.role !== 'SUPER_ADMIN'
+  const isImpersonating = !!user?.superAdminId
 
-  const exitImpersonation = () => {
-    const saUser = localStorage.getItem('pmss_sa_user')
-    const saToken = localStorage.getItem('pmss_sa_token')
-    localStorage.removeItem('pmss_sa_token')
-    localStorage.removeItem('pmss_sa_user')
-    if (saUser && saToken) {
-      login(JSON.parse(saUser))
+  const exitImpersonation = async () => {
+    try {
+      const res = await exitImpersonationApi()
+      login(res.data.data)
+      toast.success('Returned to Super Admin')
       navigate('/admin/tenants')
-    } else {
+    } catch {
       logout()
       navigate('/login')
     }
