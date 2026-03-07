@@ -16,6 +16,8 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     localStorage.removeItem('pmss_token')
     localStorage.removeItem('pmss_user')
+    localStorage.removeItem('pmss_sa_token')
+    localStorage.removeItem('pmss_sa_user')
     setUser(null)
   }, [])
 

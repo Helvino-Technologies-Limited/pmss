@@ -194,7 +194,7 @@ export default function DashboardLayout({ isAdmin }) {
   const [showProfile, setShowProfile] = useState(false)
   const [showMore, setShowMore] = useState(false)
 
-  const isImpersonating = !!localStorage.getItem('pmss_sa_token')
+  const isImpersonating = !!localStorage.getItem('pmss_sa_token') && user?.role !== 'SUPER_ADMIN'
 
   const exitImpersonation = () => {
     const saUser = localStorage.getItem('pmss_sa_user')
