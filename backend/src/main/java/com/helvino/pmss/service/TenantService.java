@@ -79,6 +79,12 @@ public class TenantService {
     public Tenant toggleTenant(UUID tenantId, boolean active) {
         Tenant tenant = getById(tenantId);
         tenant.setIsActive(active);
+        if (active) {
+            userRepository.findByTenantId(tenantId).forEach(u -> {
+                u.setIsActive(true);
+                userRepository.save(u);
+            });
+        }
         return tenantRepository.save(tenant);
     }
 
